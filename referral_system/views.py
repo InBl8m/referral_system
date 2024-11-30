@@ -68,7 +68,7 @@ def send_verification_code(request):
         # Отправляем задачу в фоновом режиме
         send_verification_code_to_user.delay(phone_number)
 
-        return Response({"message": "Verification code is being sent."}, status=status.HTTP_200_OK)
+        return Response({"message": "Verification code is being sent to " + phone_number}, status=status.HTTP_200_OK)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
