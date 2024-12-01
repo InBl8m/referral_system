@@ -3,7 +3,7 @@ import random
 from django.db import models
 
 
-class User(models.Model):
+class Referral(models.Model):
     phone_number = models.CharField(max_length=15, unique=True)
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -27,7 +27,7 @@ class User(models.Model):
         Активация инвайт-кода.
         """
         # Проверка, существует ли пользователь с таким инвайт-кодом
-        inviter = User.objects.filter(invite_code=code).first()
+        inviter = Referral.objects.filter(invite_code=code).first()
         if inviter is None:
             return False
         if self == inviter:
@@ -41,6 +41,9 @@ class User(models.Model):
 
 
 def generate_invite_code():
-    """Генерация случайного инвайт-кода"""
+    """Генерация случайного уникального инвайт-кода"""
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(6))
+    while True:
+        code = ''.join(random.choice(characters) for i in range(6))
+        if not Referral.objects.filter(invite_code=code).exists():
+            return code

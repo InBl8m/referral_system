@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация / Логин</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    label, input, button, #verificationCode {
+        width: 100%; /* Задаём всем элементам ширину 100% */
+        padding: 12px; /* Паддинг для всех элементов */
+        margin: 5px 0;
+        box-sizing: border-box; /* Это важно, чтобы padding учитывался в ширине */
+        display: block; /* Убираем возможное inline поведение для div */
+    }
+
+    button {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+    button:hover {
+        background-color: #45a049;
+    }
+
+    .error {
+        color: red;
+        font-size: 14px;
+    }
+
+    #verificationInputField, #verifyButton {
+        margin-top: 10px;
+    }
+
+    #verificationInputField {
+        display: none; /* Скрываем поле ввода кода, пока код не получен */
+    }
+
+    #verificationCode {
+        background-color: #f2f2f2; /* Добавляем фон для текста */
+        text-align: center; /* Выравниваем текст по центру */
+        font-size: 16px; /* Устанавливаем размер шрифта */
+        display: none; 
+    }
+</style>
+
+
+</head>
+<body>
+    <h2>Регистрация / Логин</h2>
+    <form id="loginForm">
+        <input type="text" id="phone" name="phone" placeholder="Введите номер телефона" required>
+        <button type="submit" id="submitButton">Войти</button>
+    </form>
+    <div id="errorMessage" class="error"></div>
+
+    <!-- Поле для отображения кода -->
+    <div id="verificationCode"></div>
+
+    <!-- Поле для ввода кода и кнопка "Войти" -->
+    <div id="verificationInputField">
+        <input type="text" id="verificationCodeInput" placeholder="Введите код" required>
+        <button id="verifyButton">Войти</button>
+    </div>
+
+<script>
+    let phoneNumber = ''; // Переменная для хранения номера телефона
+    
+    function getCSRFToken() {
+    const cookieValue = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)');
+    return cookieValue ? cookieValue.pop() : '';
+}
+
+    // Функция для отправки запроса на сервер с CSRF-токеном
+    function sendCodeRequest(phone) {
+        const csrfToken = getCSRFToken(); // Получаем CSRF-токен
+    
+        return fetch('/send_code/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken // Добавляем CSRF-токен в заголовок
+            },
+            body: JSON.stringify({ phone_number: phone })
+        });
+    }
+    
+    // Функция для обработки кода и возврата Promise
+    function handleVerificationCode(phoneNumber) {
+        return new Promise((resolve, reject) => {
+            const verificationCodeField = document.getElementById('verificationCode');
+            setTimeout(() => {
+                const url = `/get_last_code/?phone_number=${phoneNumber}`;
+                fetch(url)
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.verification_code) {
+                            const verificationCode = result.verification_code;
+                            verificationCodeField.textContent = `Ваш код: ${verificationCode}`;
+                            resolve(verificationCode); // Возвращаем код через Promise
+                        } else {
+                            verificationCodeField.textContent = 'Не удалось получить код';
+                            reject('Не удалось получить код');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при получении кода:', error);
+                        verificationCodeField.textContent = 'Ошибка при получении кода';
+                        reject(error);
+                    });
+            }, 2500); // Задержка в 3 секунды
+        });
+    }
+    
+    // Функция для обработки ошибки
+    function handleError(errorMessage) {
+        document.getElementById('errorMessage').textContent = errorMessage;
+    }
+    
+    // Функция для отправки кода на верификацию
+    function verifyCode(phoneNumber, verificationCode) {
+        return fetch('/verify_code/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                phone_number: phoneNumber,   // Отправляем номер телефона
+                verification_code: verificationCode // Отправляем код верификации
+            })
+        });
+    }
+    
+    // Функция для автоматического входа
+    function loginUser(phoneNumber, verificationCode) {
+        const csrfToken = getCSRFToken(); // Получаем CSRF-токен
+    
+        return fetch('/login/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken // Добавляем CSRF-токен в заголовок
+            },
+            body: JSON.stringify({
+                username: phoneNumber,
+                password: verificationCode
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message && data.message === 'User logged in successfully.') {
+                console.log('Успешный вход, перенаправляем...');
+                window.location.href = '/user_profile/';
+            } else {
+                console.log('Ошибка при входе:', data.detail || 'Неизвестная ошибка'); // Выводим ошибку в консоль
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при входе:', error);
+            alert('Ошибка при входе');
+        });
+    }
+    
+    // Основная логика в обработчике submit
+    document.getElementById('loginForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+    
+        const phone = document.getElementById('phone').value;
+        const verificationCodeField = document.getElementById('verificationCode');
+        const errorMessage = document.getElementById('errorMessage');
+        errorMessage.textContent = ''; // Сброс ошибок
+        verificationCodeField.textContent = ''; // Сброс поля с кодом
+    
+        // Отправка запроса на сервер
+        sendCodeRequest(phone)
+            .then(response => response.json())
+            .then(data => {
+                console.log(data); // Выводим ответ в лог
+    
+                if (data.message) {
+                    // Извлекаем номер телефона из сообщения
+                    phoneNumber = data.message.match(/\d+/)[0]; // Извлекаем только цифры
+                    console.log(`Код отправлен на номер ${phoneNumber}`);
+                    document.getElementById('verificationCode').style.display = 'block';
+                    document.getElementById('verificationInputField').style.display = 'block';
+                    document.getElementById('submitButton').style.display = 'none';
+                    // Обработка кода для полученного номера
+                    handleVerificationCode(phoneNumber).then(verificationCode => {
+                        console.log(`Получили код: ${verificationCode}`);
+                    });
+    
+                } else if (data.phone_number) {
+                    // Если ошибка формата номера
+                    handleError(data.phone_number.join(', '));
+    
+                } else if (data.detail) {
+                    // Если номер уже подтверждён
+                    const matched = data.detail.match(/^(\d{10})/);
+                    if (matched) {
+                        phoneNumber = matched[0];
+                        console.log(`Номер ${phoneNumber} уже подтверждён`);
+    
+                        // Запрос на получение кода для уже подтверждённого номера и автоматический вход
+                        handleVerificationCode(phoneNumber).then(verificationCode => {
+                            console.log(`Получили код: ${verificationCode}`);
+                            loginUser(phoneNumber, verificationCode);
+                        }).catch(error => {
+                            console.error('Ошибка при получении кода для входа:', error);
+                        });
+                    } else {
+                        handleError('Ошибка: Номер не найден в строке');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                handleError('Ошибка при отправке запроса');
+            });
+    });
+
+       // Функция для отправки данных на /register/
+    function registerUser(username, password) {
+        return fetch('/register/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        });
+    }
+
+    // Обработчик для кнопки "Войти"
+    document.getElementById('verifyButton').addEventListener('click', function() {
+        const verificationCode = document.getElementById('verificationCodeInput').value;
+        
+        if (verificationCode) {
+            // Перед отправкой запроса выводим в консоль, что мы отправляем
+            console.log('Отправляем данные для верификации:', {
+                phone_number: phoneNumber,
+                verification_code: verificationCode
+            });
+    
+            // Отправка данных на сервер
+            verifyCode(phoneNumber, verificationCode)
+                .then(response => response.json())
+                .then(data => {
+                    // Проверяем ответ сервера
+                    if (data.message) {    
+                        // После успешной верификации отправляем данные на /register/
+                        const username = phoneNumber;  // username = phoneNumber
+                        const password = verificationCode; // password = verificationCode
+    
+                        // Отправляем данные на /register/
+                        registerUser(username, password)
+                            .then(response => response.json())
+                            .then(result => {
+                                // После успешной регистрации выполняем редирект
+                                window.location.href = '/user_profile/';
+                            })
+                            .catch(error => {
+                                console.error('Ошибка при регистрации:', error);
+                                alert('Ошибка при регистрации');
+                            });
+    
+                    } else if (data.detail) {
+                        alert(data.detail); // Неверный код
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при верификации:', error);
+                    alert('Ошибка при верификации');
+                });
+        } else {
+            alert('Пожалуйста, введите код');
+        }
+    });
+</script>
+</body>
+</html>

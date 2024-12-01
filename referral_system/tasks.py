@@ -1,7 +1,7 @@
 from celery import shared_task
 import random
 import time
-from .models import User
+from .models import Referral
 
 
 @shared_task
@@ -12,7 +12,7 @@ def send_verification_code_to_user(phone_number):
     print('Task started')
     time.sleep(2)
     verification_code = str(random.randint(1000, 9999))
-    user, created = User.objects.get_or_create(phone_number=phone_number)
+    user, created = Referral.objects.get_or_create(phone_number=phone_number)
 
     if not created and user.is_verified:
         return "User is already verified."

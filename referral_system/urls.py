@@ -22,7 +22,8 @@ from . import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.login_page, name='login_page'),
-    path('auth/login/', views.login_view, name='login'),
+    path('register/', views.RegisterAPIView.as_view(), name='api_register'),
+    path('login/', views.LoginAPIView.as_view(), name='api-login'),
     path('logout/', views.logout_view, name='logout'),
     path('user_profile/', views.user_profile, name='user_profile'),
     path('send_code/', views.send_verification_code, name='send-code'),

@@ -1,38 +1,55 @@
+from django.contrib.auth import authenticate, login, logout
+from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.decorators import api_view
-from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
-from .tasks import send_verification_code_to_user
-from django.contrib.auth import logout
-from .models import User
-from .serializers import PhoneNumberSerializer, VerificationCodeSerializer, UserProfileSerializer
 from django.shortcuts import render, redirect
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.exceptions import AuthenticationFailed
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
+from .models import Referral
+from .serializers import (PhoneNumberSerializer, VerificationCodeSerializer, ReferralProfileSerializer,
+                          UserRegistrationSerializer)
+from .tasks import send_verification_code_to_user
+
+
+class RegisterAPIView(APIView):
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            user = authenticate(request, username=user.username, password=request.data['password'])
+            if user is not None:
+                login(request, user)
+                return Response({"message": "User registered and logged in successfully."},
+                                status=status.HTTP_201_CREATED)
+            else:
+                return Response({"error": "Authentication failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginAPIView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+            return Response({"message": "User logged in successfully."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 def login_page(request):
+    if request.user.is_authenticated:
+        return redirect('user_profile')
     return render(request, 'login.html')
-
-
-@api_view(['POST'])
-def login_view(request):
-    phone_number = request.data.get('phone_number')
-    try:
-        user = User.objects.get(phone_number=phone_number)
-    except User.DoesNotExist:
-        raise AuthenticationFailed('User not found')
-
-    refresh = RefreshToken.for_user(user)
-    return Response({
-        'access': str(refresh.access_token),
-        'refresh': str(refresh),
-    })
 
 
 def logout_view(request):
     logout(request)  # Выход из системы
-    return redirect('login')  # Перенаправление на страницу логина
+    return redirect('login_page')
 
 
 @login_required
@@ -60,10 +77,10 @@ def send_verification_code(request):
         phone_number = serializer.validated_data['phone_number']
 
         # Проверяем, существует ли пользователь с таким номером
-        user, created = User.objects.get_or_create(phone_number=phone_number)
+        user, created = Referral.objects.get_or_create(phone_number=phone_number)
 
         if not created and user.is_verified:
-            return Response({"detail": "User is already verified."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": phone_number + " is already verified."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Отправляем задачу в фоновом режиме
         send_verification_code_to_user.delay(phone_number)
@@ -88,8 +105,8 @@ def verify_code(request):
 
         # Находим пользователя по номеру телефона
         try:
-            user = User.objects.get(phone_number=phone_number)
-        except User.DoesNotExist:
+            user = Referral.objects.get(phone_number=phone_number)
+        except Referral.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Проверяем, совпадает ли код
@@ -115,12 +132,12 @@ def get_last_verification_code(request):
         return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = User.objects.get(phone_number=phone_number)
+        user = Referral.objects.get(phone_number=phone_number)
         if user.verification_code:
             return Response({"verification_code": user.verification_code}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "No verification code found for this number"}, status=status.HTTP_404_NOT_FOUND)
-    except User.DoesNotExist:
+    except Referral.DoesNotExist:
         return Response({"error": "User with this phone number does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -136,13 +153,13 @@ def get_user_profile(request):
         return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = User.objects.get(phone_number=phone_number)
-    except User.DoesNotExist:
+        user = Referral.objects.get(phone_number=phone_number)
+    except Referral.DoesNotExist:
         return Response({"detail": f"User with phone number {phone_number} not found."},
                         status=status.HTTP_404_NOT_FOUND)
 
     # Сериализация данных пользователя
-    serializer = UserProfileSerializer(user)
+    serializer = ReferralProfileSerializer(user)
     data = serializer.data
 
     # Возвращаем список пользователей, которые использовали инвайт-код текущего пользователя
@@ -166,8 +183,8 @@ def activate_invite_code(request):
         return Response({"error": "Phone number and invite code are required"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = User.objects.get(phone_number=phone_number)
-    except User.DoesNotExist:
+        user = Referral.objects.get(phone_number=phone_number)
+    except Referral.DoesNotExist:
         return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
     # Проверка, активировал ли пользователь уже инвайт-код

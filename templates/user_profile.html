@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль пользователя</title>
+    <style>
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: #f9f9f9;
+    max-width: 600px;
+    margin: 0 auto;
+    color: #333;
+}
+
+header {
+    display: flex;
+    justify-content: space-between; /* Размещает элементы по краям */
+    align-items: center; /* Центрирует элементы по вертикали */
+}
+
+h2 {
+    color: #4CAF50;
+    margin: 0;
+}
+
+h3 {
+    margin-top: 30px;
+    color: #333;
+    font-size: 18px;
+    text-align: center;
+}
+
+a {
+    display: inline-block;
+    text-align: center;
+    margin-top: 0px;
+    color: #af4c5b;
+    text-decoration: none;
+    padding: 10px 20px;
+    border: 1px solid #af4c5b;
+    border-radius: 5px;
+    background-color: #fff;
+}
+
+a:hover {
+    background-color: #af4c5b;
+    color: white;
+}
+
+#profileInfo {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+#profileInfo p {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+#profileInfo span {
+    font-weight: bold;
+    color: #333;
+}
+
+    </style>
+</head>
+<body>
+    <header>
+        <h2>+7{{ user.username }}</h2>
+        <a id="logoutButton" href="{% url 'logout' %}">Logout</a>
+    </header>
+    
+    <div id="inviteCodeInput" style="display: none;">
+        <label for="inviteCodeInputField">Введите код:</label>
+        <input type="text" id="inviteCodeInputField" placeholder="Введите код">
+        <button id="submitCodeButton">Отправить</button>
+        <div id="activationStatus"></div>
+    </div>
+    <div id="codeActivated" style="display: none;">
+        <p>Код 🎉<span id="activatedInviteCode"></span>🎉 активирован 👍</p>
+    </div>
+    
+    <h3>Информация о профиле:</h3>
+    <div id="profileInfo">
+        <p>Номер телефона: <span id="profilePhoneNumber"></span></p>
+        <p>Статус верификации: <span id="isVerified"></span></p>
+        <p>Ваш код приглашения: <span id="inviteCode"></span></p>
+        <p>Приглашенные пользователи: <span id="invitedUsers"></span></p>
+    </div>
+    <script>
+        // Получаем username (номер телефона) из шаблона Django
+        const phoneNumber = "{{ user.username }}";
+        function getUserProfile(phoneNumber) {
+            fetch(`/profile/?phone_number=${phoneNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.activated_invite_code == null) {
+                        document.getElementById('inviteCodeInput').style.display = 'block';
+                        document.getElementById('codeActivated').style.display = 'none';
+                    } else {
+                        document.getElementById('codeActivated').style.display = 'block';
+                        document.getElementById('inviteCodeInput').style.display = 'none';
+                        // Отображаем активированный код
+                        document.getElementById('activatedInviteCode').textContent = data.activated_invite_code;
+                    }
+                    if (data.phone_number) {
+                        // Отображаем данные на странице
+                        document.getElementById('profilePhoneNumber').textContent = '+7' + data.phone_number;
+                        document.getElementById('isVerified').textContent = data.is_verified ? 'Подтвержден' : 'Не подтвержден';
+                        document.getElementById('inviteCode').textContent = data.invite_code || 'Нет кода приглашения';
+                        document.getElementById('invitedUsers').textContent = data.invited_users.length > 0 ? data.invited_users.join(', ') : 'Нет приглашенных пользователей';
+                    } else {
+                        console.error('Не удалось получить данные профиля');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при получении данных профиля:', error);
+                });
+        }
+        
+        // Получаем и отображаем данные профиля
+        getUserProfile(phoneNumber);
+    </script>
+    <script>
+    // Получаем CSRF токен из cookies
+    const getCookie = (name) => {
+        let value = "; " + document.cookie;
+        let parts = value.split("; " + name + "=");
+        if (parts.length === 2) return parts.pop().split(";").shift();
+    };
+    const csrfToken = getCookie('csrftoken');
+    </script>
+    <script>
+    // Функция для отправки кода активации
+    function activateInviteCode(phoneNumber, inviteCode) {
+        fetch('/activate_invite_code/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken  // Добавляем CSRF токен в заголовок
+            },
+            body: JSON.stringify({
+                phone_number: phoneNumber,
+                invite_code: inviteCode
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message && data.message === 'Invite code activated successfully!') {
+                // Если код активирован успешно, показываем галочку
+                document.getElementById('activationStatus').innerHTML = '<span style="color: green;">✔ Код успешно активирован!</span>';
+                location.reload(); // Перезагружаем страницу после активации кода
+            } else {
+                // Если возникла ошибка, выводим сообщение
+                document.getElementById('activationStatus').innerHTML = '<span style="color: red;">Ошибка активации кода</span>';
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при активации кода:', error);
+            document.getElementById('activationStatus').innerHTML = '<span style="color: red;">Ошибка при отправке запроса</span>';
+        });
+    }
+    
+    // Добавляем обработчик на кнопку "Отправить"
+    document.getElementById('submitCodeButton').addEventListener('click', () => {
+        const inviteCode = document.getElementById('inviteCodeInputField').value.trim(); // Получаем введённый код
+        if (inviteCode) {
+            // Отправляем запрос на активацию кода
+            activateInviteCode(phoneNumber, inviteCode)
+        } else {
+            document.getElementById('activationStatus').innerHTML = '<span style="color: red;">Пожалуйста, введите код.</span>';
+        }
+    });
+    </script>
+</body>
+</html>

@@ -1,5 +1,21 @@
-from .models import User
+from .models import Referral
 from rest_framework import serializers
+from django.contrib.auth.models import User
+
+
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'password']
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password']
+        )
+        return user
 
 
 class VerificationCodeSerializer(serializers.Serializer):
@@ -7,11 +23,11 @@ class VerificationCodeSerializer(serializers.Serializer):
     verification_code = serializers.CharField(max_length=4)
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class ReferralProfileSerializer(serializers.ModelSerializer):
     invited_users = serializers.StringRelatedField(many=True)
 
     class Meta:
-        model = User
+        model = Referral
         fields = ['phone_number', 'is_verified', 'activated_invite_code', 'invite_code', 'invited_users']
 
 
