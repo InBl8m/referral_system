@@ -14,9 +14,9 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from django.urls import path, include
+from drf_spectacular.views import SpectacularRedocView, SpectacularSwaggerView, SpectacularAPIView
 from django.contrib import admin
-from django.urls import path
 from . import views
 
 urlpatterns = [
@@ -31,4 +31,7 @@ urlpatterns = [
     path('get_last_code/', views.get_last_verification_code, name='get_last_verification_code'),
     path('profile/', views.get_user_profile, name='get_user_profile'),
     path('activate_invite_code/', views.activate_invite_code, name='activate_invite_code'),
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('docs/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]

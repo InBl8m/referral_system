@@ -52,3 +52,16 @@ class PhoneNumberSerializer(serializers.Serializer):
 
         return phone
 
+
+class ActivateInviteCodeSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    invite_code = serializers.CharField(max_length=6)
+
+
+class SuccessResponseSerializer(serializers.Serializer):
+    message = serializers.CharField(help_text="Сообщение о статусе операции.")
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField(help_text="Описание ошибки.")
+

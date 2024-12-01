@@ -5,14 +5,18 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import logout
 from .models import Referral
 from .serializers import (PhoneNumberSerializer, VerificationCodeSerializer, ReferralProfileSerializer,
-                          UserRegistrationSerializer)
+                          UserRegistrationSerializer, ActivateInviteCodeSerializer, SuccessResponseSerializer,
+                          ErrorResponseSerializer)
 from .tasks import send_verification_code_to_user
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
 
 
 class RegisterAPIView(APIView):
+    @extend_schema(
+        summary="Стандартная регистрация",
+    )
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -29,6 +33,9 @@ class RegisterAPIView(APIView):
 
 
 class LoginAPIView(APIView):
+    @extend_schema(
+        summary="Стандартный логин",
+    )
     def post(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
@@ -62,6 +69,38 @@ def user_profile(request):
     return render(request, 'user_profile.html', {'user': user})
 
 
+@extend_schema(
+    summary="Отправка кода подтверждения на номер телефона",
+    description="Получает номер телефона, генерирует случайный 4-значный код, "
+                "сохраняет его в базе данных и отправляет код на телефон.",
+    parameters=[
+        OpenApiParameter('phone_number', OpenApiParameter.QUERY, str,
+                         description='Номер телефона, на который будет отправлен код подтверждения')
+    ],
+    request=PhoneNumberSerializer,  # Указываем сериализатор для тела запроса
+    responses={
+        200: OpenApiResponse(
+            description='Verification code is being sent to phone_number',
+            response=SuccessResponseSerializer,  # Здесь укажите сериализатор для успешного ответа
+            examples=[
+                OpenApiExample(
+                    'Verification code sent',
+                    value={"message": "Verification code is being sent to 1234567890"}
+                )
+            ]
+        ),
+        400: OpenApiResponse(
+            description='Phone number is already verified or invalid',
+            response=ErrorResponseSerializer,  # Сериализатор ошибки
+            examples=[
+                OpenApiExample(
+                    'Invalid phone number or already verified',
+                    value={"detail": "Phone number is already verified or invalid"}
+                )
+            ]
+        )
+    }
+)
 @api_view(['POST'])
 def send_verification_code(request):
     """
@@ -90,6 +129,49 @@ def send_verification_code(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    summary="Верификация кода подтверждения",
+    description="Проверяет номер телефона и код. Если код правильный, "
+                "изменяет статус пользователя на верифицированный.",
+    parameters=[],  # Здесь не нужно описывать параметры, так как они передаются в теле запроса
+    request=VerificationCodeSerializer,  # Указываем сериализатор для тела запроса
+    responses={
+        200: OpenApiResponse(
+            description='User verified successfully!',
+            response=SuccessResponseSerializer,  # Сериализатор для успешного ответа
+            examples=[
+                OpenApiExample(
+                    'Success example',
+                    value={'message': 'User verified successfully!'}
+                )
+            ]
+        ),
+        400: OpenApiResponse(
+            description='Invalid verification code or other error',
+            response=ErrorResponseSerializer,  # Сериализатор для ошибок
+            examples=[
+                OpenApiExample(
+                    'Invalid verification code',
+                    value={'detail': 'Invalid verification code.'}
+                ),
+                OpenApiExample(
+                    'Missing verification code',
+                    value={'detail': 'Verification code is required.'}
+                )
+            ]
+        ),
+        404: OpenApiResponse(
+            description='User not found',
+            response=ErrorResponseSerializer,  # Сериализатор для ошибок
+            examples=[
+                OpenApiExample(
+                    'User not found',
+                    value={'detail': 'User not found.'}
+                )
+            ]
+        )
+    }
+)
 @api_view(['POST'])
 def verify_code(request):
     """
@@ -121,6 +203,55 @@ def verify_code(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    summary="Получение последнего отправленного кода подтверждения",
+    description="Возвращает последний отправленный код подтверждения для указанного номера телефона.",
+    parameters=[
+        OpenApiParameter(
+            name='phone_number',
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description='Номер телефона для получения последнего кода подтверждения',
+            required=True
+        )
+    ],
+    responses={
+        200: OpenApiResponse(
+            description='Verification code found and returned',
+            response=VerificationCodeSerializer,  # Предположим, что у вас есть сериализатор для кода подтверждения
+            examples=[
+                OpenApiExample(
+                    'Success example',
+                    value={'verification_code': '1234'}
+                )
+            ]
+        ),
+        400: OpenApiResponse(
+            description='Phone number is required',
+            response=ErrorResponseSerializer,  # Сериализатор для ошибок
+            examples=[
+                OpenApiExample(
+                    'Missing phone number',
+                    value={'detail': 'Phone number is required'}
+                )
+            ]
+        ),
+        404: OpenApiResponse(
+            description='No verification code or user not found',
+            response=ErrorResponseSerializer,  # Сериализатор для ошибок
+            examples=[
+                OpenApiExample(
+                    'No verification code',
+                    value={'detail': 'No verification code found for this number'}
+                ),
+                OpenApiExample(
+                    'User not found',
+                    value={'detail': 'User with this phone number does not exist'}
+                )
+            ]
+        )
+    }
+)
 @api_view(['GET'])
 def get_last_verification_code(request):
     """
@@ -141,6 +272,48 @@ def get_last_verification_code(request):
         return Response({"error": "User with this phone number does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    summary="Получение профиля пользователя",
+    description="Возвращает профиль пользователя по номеру телефона. "
+                "Включает информацию о активированном инвайт-коде и "
+                "пользователях, которые использовали его.",
+    parameters=[
+        OpenApiParameter(
+            name='phone_number',
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description='Номер телефона пользователя, чей профиль требуется получить',
+            required=True
+        )
+    ],
+    responses={
+        200: ReferralProfileSerializer,
+        400: OpenApiResponse(
+            description='Invalid phone number format or missing phone number',
+            response=ErrorResponseSerializer,  # Сериализатор ошибки
+            examples=[
+                OpenApiExample(
+                    'Invalid phone number format',
+                    value={'detail': 'Invalid phone number format'}
+                ),
+                OpenApiExample(
+                    'Missing phone number',
+                    value={'detail': 'Phone number is required'}
+                )
+            ]
+        ),
+        404: OpenApiResponse(
+            description='User not found',
+            response=ErrorResponseSerializer,  # Сериализатор ошибки
+            examples=[
+                OpenApiExample(
+                    'User not found',
+                    value={'detail': 'User not found'}
+                )
+            ]
+        )
+    }
+)
 @api_view(['GET'])
 def get_user_profile(request):
     """
@@ -170,6 +343,44 @@ def get_user_profile(request):
     return Response(data)
 
 
+@extend_schema(
+    summary="Активация инвайт-кода",
+    description="Пользователь может ввести чужой инвайт-код. Проверка на существование "
+                "инвайт-кода и активация его для пользователя.",
+    request=ActivateInviteCodeSerializer,
+    responses={
+        200: OpenApiResponse(
+            description='Invite code activated successfully!',
+            response=SuccessResponseSerializer,
+            examples=[
+                OpenApiExample(
+                    name='Success Example',
+                    value={'message': 'Invite code activated successfully!'}
+                )
+            ]
+        ),
+        400: OpenApiResponse(
+            description='Invalid invite code or other error',
+            response=ErrorResponseSerializer,
+            examples=[
+                OpenApiExample(
+                    name='Error Example',
+                    value={'detail': 'Invalid invite code.'}
+                )
+            ]
+        ),
+        404: OpenApiResponse(
+            description='User not found.',
+            response=ErrorResponseSerializer,
+            examples=[
+                OpenApiExample(
+                    name='Error Example',
+                    value={'detail': 'User not found.'}
+                )
+            ]
+        ),
+    }
+)
 @api_view(['POST'])
 def activate_invite_code(request):
     """
