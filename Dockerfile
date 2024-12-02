@@ -24,4 +24,4 @@ ENV PYTHONUNBUFFERED 1
 EXPOSE 8000
 
 # Выполняем миграции перед запуском приложения
-CMD ["sh", "-c", "python manage.py migrate && gunicorn referral_system.wsgi:application --bind 0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py makemigrations && python manage.py migrate && gunicorn referral_system.wsgi:application --bind 0.0.0.0:8000"]

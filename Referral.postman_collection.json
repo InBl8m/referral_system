@@ -1,0 +1,159 @@
+{
+	"info": {
+		"_postman_id": "4761ad76-a842-4efe-a3ab-443a59ac8fea",
+		"name": "Referral",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "33936513"
+	},
+	"item": [
+		{
+			"name": "verify_code",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"phone_number\": \"5554321465\",\r\n  \"verification_code\": \"6968\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://45.142.36.174/verify_code/",
+					"protocol": "http",
+					"host": [
+						"45",
+						"142",
+						"36",
+						"174"
+					],
+					"path": [
+						"verify_code",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "send_code",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"phone_number\": \"1234567890\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://45.142.36.174/send_code/",
+					"protocol": "http",
+					"host": [
+						"45",
+						"142",
+						"36",
+						"174"
+					],
+					"path": [
+						"send_code",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get_last_code",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://45.142.36.174/get_last_code/?phone_number=1234567890",
+					"protocol": "http",
+					"host": [
+						"45",
+						"142",
+						"36",
+						"174"
+					],
+					"path": [
+						"get_last_code",
+						""
+					],
+					"query": [
+						{
+							"key": "phone_number",
+							"value": "1234567890"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "profile",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://45.142.36.174/profile/?phone_number=1234567890",
+					"protocol": "http",
+					"host": [
+						"45",
+						"142",
+						"36",
+						"174"
+					],
+					"path": [
+						"profile",
+						""
+					],
+					"query": [
+						{
+							"key": "phone_number",
+							"value": "1234567890"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "activate_invite_code",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"phone_number\": \"1234567890\",\r\n    \"invite_code\": \"ZrcpCK\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://45.142.36.174/activate_invite_code/",
+					"protocol": "http",
+					"host": [
+						"45",
+						"142",
+						"36",
+						"174"
+					],
+					"path": [
+						"activate_invite_code",
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
